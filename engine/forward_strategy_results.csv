@@ -1,0 +1,6 @@
+signal_id,market,signal,signal_candle_epoch,signal_time_utc,entry_reference,expiry_minutes,result,entry_price,exit_price,reason
+R_10_1792505940,R_10,CALL,1792505940,2026-10-20 14:19:00 UTC,1792506000,3,WIN,4891.424,4892.143,OHLC directional test; excludes payout and costs
+R_10_1792506240,R_10,CALL,1792506240,2026-10-20 14:24:00 UTC,1792506300,3,LOSS,4892.784,4891.803,OHLC directional test; excludes payout and costs
+R_100_1792506240,R_100,PUT,1792506240,2026-10-20 14:24:00 UTC,1792506300,3,LOSS,662.71,665.62,OHLC directional test; excludes payout and costs
+R_10_1792506660,R_10,CALL,1792506660,2026-10-20 14:31:00 UTC,1792506720,3,WIN,4892.381,4893.154,OHLC directional test; excludes payout and costs
+R_10_1792506840,R_10,CALL,1792506840,2026-10-20 14:34:00 UTC,1792506900,3,WIN,4892.834,4893.749,OHLC directional test; excludes payout and costs

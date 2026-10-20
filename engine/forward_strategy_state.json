@@ -1,0 +1,50 @@
+{
+  "pending": [
+    {
+      "signal_id": "R_25_1792507320",
+      "market": "R_25",
+      "signal": "PUT",
+      "signal_epoch": 1792507320,
+      "signal_time_utc": "2026-10-20 14:42:00 UTC"
+    },
+    {
+      "signal_id": "R_100_1792507380",
+      "market": "R_100",
+      "signal": "CALL",
+      "signal_epoch": 1792507380,
+      "signal_time_utc": "2026-10-20 14:43:00 UTC"
+    }
+  ],
+  "completed": [
+    {
+      "signal_id": "R_10_1792505940",
+      "market": "R_10",
+      "signal": "CALL",
+      "result": "WIN"
+    },
+    {
+      "signal_id": "R_10_1792506240",
+      "market": "R_10",
+      "signal": "CALL",
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "R_100_1792506240",
+      "market": "R_100",
+      "signal": "PUT",
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "R_10_1792506660",
+      "market": "R_10",
+      "signal": "CALL",
+      "result": "WIN"
+    },
+    {
+      "signal_id": "R_10_1792506840",
+      "market": "R_10",
+      "signal": "CALL",
+      "result": "WIN"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+signal_id,market,direction,signal_epoch,signal_time_utc,signal_price,entry_time_utc,entry_price,expiry_time_utc,expiry_price,outcome
+R_75|1792419120|PUT,R_75,PUT,1792419120,2026-10-19 14:13:00 UTC,36987.9067,2026-10-19 14:13:00 UTC,,2026-10-19 14:16:00 UTC,,PENDING

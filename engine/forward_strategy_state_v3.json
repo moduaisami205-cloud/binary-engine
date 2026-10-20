@@ -1,0 +1,49 @@
+{
+  "pending": [],
+  "completed": [
+    {
+      "signal_id": "R_10_1792509780",
+      "market": "R_10",
+      "signal": "PUT",
+      "signal_epoch": 1792509780,
+      "entry_epoch": 1792509840,
+      "exit_epoch": 1792509900,
+      "entry_close": 4888.322,
+      "exit_close": 4887.663,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "R_100_1792510440",
+      "market": "R_100",
+      "signal": "PUT",
+      "signal_epoch": 1792510440,
+      "entry_epoch": 1792510500,
+      "exit_epoch": 1792510560,
+      "entry_close": 665.27,
+      "exit_close": 665.38,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "R_10_1792510500",
+      "market": "R_10",
+      "signal": "PUT",
+      "signal_epoch": 1792510500,
+      "entry_epoch": 1792510560,
+      "exit_epoch": 1792510620,
+      "entry_close": 4888.994,
+      "exit_close": 4888.399,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "R_10_1792510740",
+      "market": "R_10",
+      "signal": "PUT",
+      "signal_epoch": 1792510740,
+      "entry_epoch": 1792510800,
+      "exit_epoch": 1792510860,
+      "entry_close": 4887.356,
+      "exit_close": 4888.454,
+      "result": "LOSS"
+    }
+  ]
+}

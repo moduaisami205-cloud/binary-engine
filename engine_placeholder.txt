@@ -1,0 +1,97 @@
+
+import json
+from websocket import create_connection
+
+from engine.signals import generate_signal
+
+APP_ID = 1089
+SYMBOL = "R_100"
+CANDLE_COUNT = 100
+
+WS_URL = (
+    "wss://api.derivws.com/trading/v1/options/ws/public"
+)
+
+
+def main():
+    connection = None
+
+    try:
+        print("=" * 45)
+        print("       BINARY ENGINE")
+        print("     DERIV STRATEGY TEST")
+        print("=" * 45)
+        print("Connecting to Deriv...")
+
+        connection = create_connection(
+            WS_URL,
+            timeout=15,
+        )
+
+        request = {
+            "ticks_history": SYMBOL,
+            "adjust_start_time": 1,
+            "count": CANDLE_COUNT,
+            "end": "latest",
+            "granularity": 60,
+            "style": "candles",
+            "req_id": 1,
+        }
+
+        connection.send(json.dumps(request))
+        response = json.loads(connection.recv())
+
+        if "error" in response:
+            print("Deriv error:", response["error"])
+            return
+
+        candles = response.get("candles", [])
+
+        if len(candles) < 40:
+            print("Not enough candles received.")
+            print("Candles:", len(candles))
+            return
+
+        # Use only candles that have already closed.
+        latest_epoch = int(candles[-1]["epoch"])
+        now = int(__import__("time").time())
+
+        if latest_epoch + 60 > now:
+            candles = candles[:-1]
+
+        if len(candles) < 40:
+            print("Not enough closed candles.")
+            return
+
+        closed_prices = [
+            float(candle["close"])
+            for candle in candles
+        ]
+
+        result = generate_signal(closed_prices)
+
+        print()
+        print("Symbol:", SYMBOL)
+        print("Timeframe: M1")
+        print("Closed candles:", len(closed_prices))
+        print("Bollinger Bands: 22, 2")
+        print("MACD: 13, 29, 8")
+        print()
+        print("Direction:", result["direction"])
+        print("Status:", result["status"])
+        print()
+        print("Mode: SIGNAL TEST ONLY")
+        print("No trades placed.")
+
+    except Exception as error:
+        print("Test failed:")
+        print(type(error).__name__ + ":", error)
+
+    finally:
+        if connection is not None:
+            connection.close()
+            print("Connection closed.")
+
+
+if __name__ == "__main__":
+    main()

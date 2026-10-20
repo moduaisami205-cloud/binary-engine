@@ -1,0 +1,359 @@
+﻿"""
+BINARY ENGINE - HISTORICAL BACKTEST
+Strategy: Bollinger Bands (22, 2) + MACD (13, 29, 8)
+Timeframe: M1
+TEST ONLY: No trades are placed.
+"""
+
+import json
+import time
+from datetime import datetime, timezone
+
+from websocket import create_connection
+from engine.signals import generate_signal
+
+
+WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public"
+SYMBOL = "R_50"
+CANDLES_PER_CHUNK = 1000
+MAX_CHUNKS = 5
+TIMEFRAME_SECONDS = 60
+SEGMENT_COUNT = 3
+
+
+def request_candle_chunk(end_epoch, req_id):
+    start_epoch = end_epoch - (
+        (CANDLES_PER_CHUNK - 1) * TIMEFRAME_SECONDS
+    )
+    connection = None
+
+    try:
+        connection = create_connection(WS_URL, timeout=30)
+
+        request = {
+            "ticks_history": SYMBOL,
+            "start": start_epoch,
+            "end": end_epoch,
+            "granularity": TIMEFRAME_SECONDS,
+            "style": "candles",
+            "req_id": req_id,
+        }
+
+        connection.send(json.dumps(request))
+
+        while True:
+            response = json.loads(connection.recv())
+            if response.get("req_id") == req_id:
+                break
+
+        if "error" in response:
+            message = response["error"].get(
+                "message", str(response["error"])
+            )
+            raise RuntimeError(message)
+
+        return response.get("candles", [])
+
+    finally:
+        if connection is not None:
+            connection.close()
+
+
+def get_historical_candles():
+    now = int(time.time())
+    end_epoch = now - TIMEFRAME_SECONDS
+    all_candles = {}
+    chunks_received = 0
+
+    for chunk_number in range(1, MAX_CHUNKS + 1):
+        print(
+            f"Downloading history chunk "
+            f"{chunk_number}/{MAX_CHUNKS}..."
+        )
+
+        raw_candles = request_candle_chunk(
+            end_epoch, 100 + chunk_number
+        )
+
+        if not raw_candles:
+            print("No more candles returned by the API.")
+            break
+
+        chunks_received += 1
+
+        for candle in raw_candles:
+            epoch = int(candle["epoch"])
+            is_closed = epoch + TIMEFRAME_SECONDS <= now
+            is_aligned = epoch % TIMEFRAME_SECONDS == 0
+
+            if is_closed and is_aligned:
+                all_candles[epoch] = candle
+
+        oldest_epoch = min(
+            int(candle["epoch"]) for candle in raw_candles
+        )
+
+        if oldest_epoch >= end_epoch:
+            print("Stopping because history did not move backwards.")
+            break
+
+        end_epoch = oldest_epoch - 1
+
+        print("Candles returned in chunk:", len(raw_candles))
+        print("Unique aligned candles collected:", len(all_candles))
+
+        if len(raw_candles) < 2:
+            print("Stopping because the returned chunk is too small.")
+            break
+
+    candles = [
+        all_candles[epoch]
+        for epoch in sorted(all_candles)
+    ]
+
+    return candles, chunks_received
+
+
+def empty_result():
+    result = {
+        "calls": 0,
+        "puts": 0,
+        "wins": 0,
+        "losses": 0,
+        "ties": 0,
+        "skipped_gaps": 0,
+    }
+
+    for direction in ("call", "put"):
+        result[f"{direction}_wins"] = 0
+        result[f"{direction}_losses"] = 0
+        result[f"{direction}_ties"] = 0
+
+    return result
+
+
+def score_signal(result, direction, entry_price, expiry_price):
+    if direction == "CALL":
+        result["calls"] += 1
+        prefix = "call"
+    else:
+        result["puts"] += 1
+        prefix = "put"
+
+    if expiry_price == entry_price:
+        outcome = "ties"
+    elif direction == "CALL" and expiry_price > entry_price:
+        outcome = "wins"
+    elif direction == "PUT" and expiry_price < entry_price:
+        outcome = "wins"
+    else:
+        outcome = "losses"
+
+    result[outcome] += 1
+    result[f"{prefix}_{outcome}"] += 1
+
+
+def print_direction_result(label, result, prefix):
+    wins = result[f"{prefix}_wins"]
+    losses = result[f"{prefix}_losses"]
+    ties = result[f"{prefix}_ties"]
+    total = wins + losses + ties
+    decided = wins + losses
+
+    print(f"{label} outcomes: {total}")
+    print(f"{label} wins: {wins}")
+    print(f"{label} losses: {losses}")
+    print(f"{label} ties: {ties}")
+
+    if decided:
+        print(
+            f"{label} directional hit rate:",
+            round(wins / decided * 100, 2),
+            "%",
+        )
+    else:
+        print(f"{label} directional hit rate: Not available")
+
+
+def print_result(label, result):
+    total = result["calls"] + result["puts"]
+    wins = result["wins"]
+    losses = result["losses"]
+    ties = result["ties"]
+    decided = wins + losses
+
+    print()
+    print("-" * 55)
+    print(label)
+    print("CALL signals:", result["calls"])
+    print("PUT signals:", result["puts"])
+    print("Total signals:", total)
+    print("Approximate directional wins:", wins)
+    print("Approximate directional losses:", losses)
+    print("Ties:", ties)
+    print("Skipped candle gaps:", result["skipped_gaps"])
+
+    if decided:
+        print(
+            "Overall directional hit rate:",
+            round(wins / decided * 100, 2),
+            "%",
+        )
+    else:
+        print("Overall directional hit rate: Not available")
+
+    print()
+    print_direction_result("CALL", result, "call")
+    print()
+    print_direction_result("PUT", result, "put")
+
+
+def run_backtest(candles):
+    if len(candles) < 100:
+        print("Not enough candles for a meaningful segment test.")
+        print("Candles available:", len(candles))
+        return
+
+    # Warm up indicators; the last candle has no following candle.
+    eligible_start = 39
+    eligible_end = len(candles) - 1
+    eligible_count = eligible_end - eligible_start
+
+    if eligible_count < SEGMENT_COUNT:
+        print("Not enough eligible candles to split into segments.")
+        return
+
+    print()
+    print("=" * 55)
+    print("       BINARY ENGINE BACKTEST")
+    print("=" * 55)
+    print("Symbol:", SYMBOL)
+    print("Timeframe: M1")
+    print("Closed aligned candles:", len(candles))
+
+    first_time = datetime.fromtimestamp(
+        int(candles[0]["epoch"]), timezone.utc
+    )
+    last_time = datetime.fromtimestamp(
+        int(candles[-1]["epoch"]), timezone.utc
+    )
+
+    print("History begins:", first_time.strftime("%Y-%m-%d %H:%M UTC"))
+    print("History ends:", last_time.strftime("%Y-%m-%d %H:%M UTC"))
+    print(
+        "History span:",
+        round(
+            (
+                int(candles[-1]["epoch"])
+                - int(candles[0]["epoch"])
+            ) / 3600,
+            2,
+        ),
+        "hours",
+    )
+
+    boundaries = []
+    for segment in range(SEGMENT_COUNT):
+        start_index = (
+            eligible_start + eligible_count * segment // SEGMENT_COUNT
+        )
+        end_index = (
+            eligible_start
+            + eligible_count * (segment + 1) // SEGMENT_COUNT
+        )
+        boundaries.append((start_index, end_index))
+
+    overall = empty_result()
+    segment_results = [empty_result() for _ in range(SEGMENT_COUNT)]
+
+    closes = [float(candle["close"]) for candle in candles]
+    opens = [float(candle["open"]) for candle in candles]
+
+    # Calculate each candle's signal once, then assign it to its segment.
+    for i in range(eligible_start, eligible_end):
+        current_epoch = int(candles[i]["epoch"])
+        next_epoch = int(candles[i + 1]["epoch"])
+
+        segment_number = next(
+            (
+                index
+                for index, (start, end) in enumerate(boundaries)
+                if start <= i < end
+            ),
+            None,
+        )
+
+        if next_epoch - current_epoch != TIMEFRAME_SECONDS:
+            overall["skipped_gaps"] += 1
+            if segment_number is not None:
+                segment_results[segment_number]["skipped_gaps"] += 1
+            continue
+
+        signal = generate_signal(closes[:i + 1], opens[:i + 1])
+        direction = signal.get("direction")
+
+        if direction not in ("CALL", "PUT"):
+            continue
+
+        entry_price = float(candles[i + 1]["open"])
+        expiry_price = float(candles[i + 1]["close"])
+
+        score_signal(overall, direction, entry_price, expiry_price)
+
+        if segment_number is not None:
+            score_signal(
+                segment_results[segment_number],
+                direction,
+                entry_price,
+                expiry_price,
+            )
+
+    print_result("OVERALL RESULTS", overall)
+
+    print()
+    print("=" * 55)
+    print("       CHRONOLOGICAL SEGMENT RESULTS")
+    print("=" * 55)
+
+    for segment, (start_index, end_index) in enumerate(boundaries):
+        start_time = datetime.fromtimestamp(
+            int(candles[start_index]["epoch"]), timezone.utc
+        )
+        end_time = datetime.fromtimestamp(
+            int(candles[min(end_index, len(candles) - 1)]["epoch"]),
+            timezone.utc,
+        )
+
+        label = (
+            f"SEGMENT {segment + 1}: "
+            f"{start_time.strftime('%Y-%m-%d %H:%M')} to "
+            f"{end_time.strftime('%Y-%m-%d %H:%M')} UTC"
+        )
+
+        print_result(label, segment_results[segment])
+
+    print()
+    print("=" * 55)
+    print("TEST ONLY - NO TRADES WERE PLACED.")
+    print("Directional results are not actual binary-option profits.")
+    print("Historical results do not guarantee future performance.")
+    print("Ties are excluded from hit-rate calculations.")
+    print("Compare segments carefully; small samples can be misleading.")
+
+
+def main():
+    try:
+        print("Connecting to Deriv public market data...")
+        candles, chunks_received = get_historical_candles()
+        print("Chunks received:", chunks_received)
+        print("Unique candles collected:", len(candles))
+        run_backtest(candles)
+
+    except Exception as error:
+        print("Backtest failed:")
+        print(type(error).__name__ + ":", error)
+
+
+if __name__ == "__main__":
+    main()
+

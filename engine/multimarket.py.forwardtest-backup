@@ -1,0 +1,434 @@
+﻿
+"""
+BINARY ENGINE - MULTI-TIMEFRAME SCANNER
+M5 direction + M3 confirmation + M1 entry
+Expiry: 3 minutes
+TEST ONLY: No real trades are placed.
+"""
+
+import csv
+import json
+import os
+import time
+
+import requests
+from dotenv import load_dotenv
+from websocket import create_connection
+
+from engine.signals import generate_signal, SUPPORTED_MARKETS
+
+load_dotenv()
+
+WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public"
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+MARKETS = list(SUPPORTED_MARKETS)
+
+CANDLE_COUNT = 120
+M1_SECONDS = 60
+M3_SECONDS = 180
+M5_SECONDS = 300
+EXPIRY_SECONDS = 180
+SCAN_INTERVAL = 60
+RECONNECT_DELAY = 10
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HISTORY_FILE = os.path.join(BASE_DIR, "signal_history.csv")
+ALERT_HISTORY_FILE = os.path.join(BASE_DIR, "telegram_sent.json")
+
+HISTORY_FIELDS = [
+    "signal_id", "market", "direction", "signal_epoch",
+    "signal_time_utc", "signal_price", "entry_time_utc",
+    "entry_price", "expiry_time_utc", "expiry_price", "outcome",
+]
+
+
+def utc_time(epoch):
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(
+        int(epoch), timezone.utc
+    ).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def ensure_history_file():
+    if not os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, "w", newline="", encoding="utf-8") as f:
+            csv.DictWriter(f, fieldnames=HISTORY_FIELDS).writeheader()
+
+
+def read_history():
+    ensure_history_file()
+    try:
+        with open(HISTORY_FILE, "r", newline="", encoding="utf-8") as f:
+            return list(csv.DictReader(f))
+    except (OSError, csv.Error):
+        return []
+
+
+def write_history(rows):
+    temp_file = HISTORY_FILE + ".tmp"
+    with open(temp_file, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=HISTORY_FIELDS)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({
+                field: row.get(field, "")
+                for field in HISTORY_FIELDS
+            })
+    os.replace(temp_file, HISTORY_FILE)
+
+
+def load_sent_signals():
+    if not os.path.exists(ALERT_HISTORY_FILE):
+        return set()
+    try:
+        with open(ALERT_HISTORY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return set(str(item) for item in data) if isinstance(data, list) else set()
+    except (OSError, ValueError):
+        print("[WARNING] Telegram alert history could not be read.")
+        print("[WARNING] Alerts paused to avoid duplicate messages.")
+        return None
+
+
+def save_sent_signals(sent_signals):
+    temp_file = ALERT_HISTORY_FILE + ".tmp"
+    with open(temp_file, "w", encoding="utf-8") as f:
+        json.dump(sorted(sent_signals), f, indent=2)
+    os.replace(temp_file, ALERT_HISTORY_FILE)
+
+
+def get_closed_candles(connection, symbol, request_id, granularity):
+    request = {
+        "ticks_history": symbol,
+        "adjust_start_time": 1,
+        "count": CANDLE_COUNT,
+        "end": "latest",
+        "granularity": granularity,
+        "style": "candles",
+        "req_id": request_id,
+    }
+
+    connection.send(json.dumps(request))
+    deadline = time.time() + 20
+
+    while time.time() < deadline:
+        response = json.loads(connection.recv())
+
+        if response.get("req_id") != request_id:
+            continue
+
+        if response.get("error"):
+            message = response["error"].get("message", "Unknown API error")
+            raise RuntimeError(f"{symbol} ({granularity}s): {message}")
+
+        now = int(time.time())
+        candles = [
+            candle for candle in response.get("candles", [])
+            if int(candle["epoch"]) + granularity <= now
+        ]
+        candles.sort(key=lambda candle: int(candle["epoch"]))
+
+        if len(candles) < 40:
+            raise RuntimeError(
+                f"{symbol}: not enough closed candles for "
+                f"{granularity}-second timeframe"
+            )
+        return candles
+
+    raise TimeoutError(
+        f"Timed out waiting for {symbol}, timeframe {granularity}s"
+    )
+
+
+def record_signal_history(symbol, candle, result):
+    direction = result.get("direction")
+    if direction not in ("CALL", "PUT"):
+        return
+
+    signal_epoch = int(candle["epoch"])
+    entry_epoch = signal_epoch + M1_SECONDS
+    expiry_epoch = entry_epoch + EXPIRY_SECONDS
+    signal_id = f"{symbol}|{signal_epoch}|{direction}"
+    rows = read_history()
+
+    if any(row.get("signal_id") == signal_id for row in rows):
+        return
+
+    rows.append({
+        "signal_id": signal_id,
+        "market": symbol,
+        "direction": direction,
+        "signal_epoch": signal_epoch,
+        "signal_time_utc": utc_time(signal_epoch + M1_SECONDS),
+        "signal_price": candle["close"],
+        "entry_time_utc": utc_time(entry_epoch),
+        "entry_price": "",
+        "expiry_time_utc": utc_time(expiry_epoch),
+        "expiry_price": "",
+        "outcome": "PENDING",
+    })
+    write_history(rows)
+    print(f"[HISTORY] Saved {symbol} {direction}; expiry: {utc_time(expiry_epoch)}")
+
+
+def update_signal_history(symbol, candles):
+    """Estimate outcomes from M1 candle prices; not official Deriv payouts."""
+    candles_by_epoch = {
+        int(candle["epoch"]): candle for candle in candles
+    }
+    rows = read_history()
+    changed = False
+
+    for row in rows:
+        if row.get("market") != symbol or row.get("outcome") != "PENDING":
+            continue
+        try:
+            signal_epoch = int(row["signal_epoch"])
+        except (ValueError, TypeError):
+            continue
+
+        entry_epoch = signal_epoch + M1_SECONDS
+        expiry_epoch = entry_epoch + EXPIRY_SECONDS - M1_SECONDS
+        entry_candle = candles_by_epoch.get(entry_epoch)
+        expiry_candle = candles_by_epoch.get(expiry_epoch)
+
+        if entry_candle is None or expiry_candle is None:
+            continue
+
+        entry_price = float(entry_candle["open"])
+        expiry_price = float(expiry_candle["close"])
+
+        if expiry_price == entry_price:
+            outcome = "DRAW"
+        elif row["direction"] == "CALL":
+            outcome = "WIN" if expiry_price > entry_price else "LOSS"
+        else:
+            outcome = "WIN" if expiry_price < entry_price else "LOSS"
+
+        row["entry_price"] = entry_price
+        row["expiry_price"] = expiry_price
+        row["outcome"] = outcome
+        changed = True
+
+        print(
+            f"[RESULT] {symbol} {row['direction']} | "
+            f"Entry={entry_price} | Expiry={expiry_price} | {outcome}"
+        )
+
+    if changed:
+        write_history(rows)
+
+
+def send_telegram_message(message):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("[TELEGRAM] Bot token or chat ID is not configured.")
+        return False
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    try:
+        response = requests.post(
+            url,
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": message},
+            timeout=15,
+        )
+        if response.ok and response.json().get("ok"):
+            print("[TELEGRAM] Signal sent.")
+            return True
+        print(f"[TELEGRAM] Send failed: HTTP {response.status_code}")
+        return False
+    except requests.RequestException as exc:
+        print(f"[TELEGRAM] Connection error: {exc}")
+        return False
+
+
+def notify_signal(symbol, candle, result, sent_signals):
+    direction = result.get("direction")
+    if direction not in ("CALL", "PUT"):
+        return
+
+    signal_epoch = int(candle["epoch"])
+    signal_id = f"{symbol}|{signal_epoch}|{direction}"
+
+    if sent_signals is None:
+        print("[TELEGRAM] Alerts paused: alert history unavailable.")
+        return
+    if signal_id in sent_signals:
+        return
+
+    m5 = result.get("m5_direction") or result.get("m5_trend") or "N/A"
+    m3 = result.get("m3_direction") or result.get("m3_trend") or "N/A"
+    bands = "INSIDE BANDS" if result.get("inside_bands") else "NOT CONFIRMED"
+
+    message = (
+        "WELCOME TO MR AI BINARY ENGINE SIGNAL\n"
+        "================================\n\n"
+        f"Market: {symbol}\n"
+        f"Direction: {direction}\n"
+        "Entry timeframe: M1 (next candle)\n"
+        "Expiry: 3 minutes\n"
+        f"M5 trend: {m5}\n"
+        f"M3 trend: {m3}\n"
+        f"Bollinger Bands (22, 2): {bands}\n"
+        "MACD: 13, 29, 8\n"
+        f"Signal candle close: {candle['close']}\n"
+        f"Candle closed (UTC): {utc_time(signal_epoch + M1_SECONDS)}\n\n"
+        "GARGADI A HAUSA:\n"
+        "Wannan signal na fasahar binciken kasuwa ne kawai. "
+        "Ba garanti na riba ba ne; asara na iya faruwa. "
+        "A gwada a demo kafin amfani da kudi na gaske.\n\n"
+        "WARNING IN ENGLISH:\n"
+        "This signal is for technical analysis only. "
+        "Profit is not guaranteed and losses are possible. "
+        "Test on a demo account before risking real money.\n\n"
+        "TEST MODE: No trade was placed.\n"
+        "Powered by MR AI Binary Engine Signal"
+    )
+
+    if send_telegram_message(message):
+        sent_signals.add(signal_id)
+        try:
+            save_sent_signals(sent_signals)
+        except OSError as exc:
+            print(f"[TELEGRAM] Could not save alert history: {exc}")
+
+
+def display_market(symbol, candles_m1, candles_m3, candles_m5, sent_signals):
+    prices_m1 = [float(c["close"]) for c in candles_m1]
+    opens_m1 = [float(c["open"]) for c in candles_m1]
+    prices_m3 = [float(c["close"]) for c in candles_m3]
+    prices_m5 = [float(c["close"]) for c in candles_m5]
+
+    result = generate_signal(
+        closed_prices=prices_m1,
+        closed_opens=opens_m1,
+        closed_prices_m3=prices_m3,
+        closed_prices_m5=prices_m5,
+        symbol=symbol,
+    )
+
+    print("\n" + "=" * 54)
+    print(f"Market: {symbol}")
+    print("Timeframes: M5 + M3 + M1")
+    print(f"M5 direction: {result.get('m5_direction', 'N/A')}")
+    print(f"M3 direction: {result.get('m3_direction', 'N/A')}")
+    print(f"Last closed M1 price: {prices_m1[-1]}")
+
+    # Signal Diagnostics: display the strategy's existing checks.
+    print("\n--- SIGNAL DIAGNOSTICS ---")
+    checks = [
+        ("M1 bullish MACD crossover", "bullish_cross"),
+        ("M1 bearish MACD crossover", "bearish_cross"),
+        ("Histogram crossed above zero", "bullish_histogram_zero_cross"),
+        ("Histogram crossed below zero", "bearish_histogram_zero_cross"),
+        ("Price inside Bollinger Bands", "inside_bands"),
+    ]
+    for label, key in checks:
+        value = result.get(key)
+        if value is not None:
+            print(f"{label}: {'YES' if value else 'NO'}")
+        else:
+            print(f"{label}: N/A")
+
+    for label, key in [
+        ("BB lower", "bb_lower"),
+        ("BB middle", "bb_middle"),
+        ("BB upper", "bb_upper"),
+        ("Previous MACD", "macd_previous"),
+        ("Current MACD", "macd"),
+        ("Previous signal line", "signal_previous"),
+        ("Current signal line", "signal"),
+        ("Previous histogram", "histogram_previous"),
+        ("Current histogram", "histogram"),
+    ]:
+        value = result.get(key)
+        if value is not None:
+            print(f"{label}: {value:.8f}")
+
+    print("\n--- DECISION ---")
+    print(f"Status: {result.get('status', 'UNKNOWN')}")
+
+    if result.get("direction") in ("CALL", "PUT"):
+        print(f"SIGNAL: {result['direction']}")
+        print("Entry plan: Next M1 candle")
+        print("Expiry: 3 minutes")
+        print("Mode: TEST ONLY - no trade placed")
+        record_signal_history(symbol, candles_m1[-1], result)
+        notify_signal(symbol, candles_m1[-1], result, sent_signals)
+
+    print("=" * 54)
+
+
+def scan_once(sent_signals):
+    connection = None
+    try:
+        connection = create_connection(WS_URL, timeout=20)
+        request_id = 1
+
+        for symbol in MARKETS:
+            candles_m1 = get_closed_candles(
+                connection, symbol, request_id, M1_SECONDS
+            )
+            request_id += 1
+            candles_m3 = get_closed_candles(
+                connection, symbol, request_id, M3_SECONDS
+            )
+            request_id += 1
+            candles_m5 = get_closed_candles(
+                connection, symbol, request_id, M5_SECONDS
+            )
+            request_id += 1
+
+            update_signal_history(symbol, candles_m1)
+            display_market(
+                symbol, candles_m1, candles_m3, candles_m5, sent_signals
+            )
+        return True
+
+    except Exception as exc:
+        print(f"[CONNECTION/SCAN ERROR] {exc}")
+        return False
+
+    finally:
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+
+def main():
+    ensure_history_file()
+    sent_signals = load_sent_signals()
+
+    print("=" * 54)
+    print("       BINARY ENGINE - MULTI-TIMEFRAME")
+    print("=" * 54)
+    print("Markets:", ", ".join(MARKETS))
+    print("Strategy: M5 direction + M3 confirmation + M1 entry")
+    print("Expiry: 3 minutes")
+    print("Mode: TEST ONLY - NO REAL TRADES")
+    print("Press CTRL+C to stop.")
+    print("=" * 54)
+
+    while True:
+        try:
+            success = scan_once(sent_signals)
+            if not success:
+                print(f"[RECONNECT] Trying again in {RECONNECT_DELAY} seconds...")
+                time.sleep(RECONNECT_DELAY)
+            else:
+                time.sleep(SCAN_INTERVAL)
+        except KeyboardInterrupt:
+            print("\nBinary Engine stopped.")
+            break
+        except Exception as exc:
+            print(f"[SYSTEM ERROR] {exc}")
+            print(f"[RECONNECT] Trying again in {RECONNECT_DELAY} seconds...")
+            time.sleep(RECONNECT_DELAY)
+
+
+if __name__ == "__main__":
+    main()

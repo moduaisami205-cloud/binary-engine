@@ -1,0 +1,313 @@
+{
+  "pending": [
+    {
+      "signal_id": "R_25_1792514040",
+      "market": "R_25",
+      "signal": "PUT",
+      "signal_epoch": 1792514040,
+      "entry_epoch": 1792514100,
+      "exit_epoch": 1792514160
+    },
+    {
+      "signal_id": "1HZ10V_1792514040",
+      "market": "1HZ10V",
+      "signal": "PUT",
+      "signal_epoch": 1792514040,
+      "entry_epoch": 1792514100,
+      "exit_epoch": 1792514160
+    },
+    {
+      "signal_id": "1HZ100V_1792514040",
+      "market": "1HZ100V",
+      "signal": "PUT",
+      "signal_epoch": 1792514040,
+      "entry_epoch": 1792514100,
+      "exit_epoch": 1792514160
+    },
+    {
+      "signal_id": "stpRNG_1792514100",
+      "market": "stpRNG",
+      "signal": "CALL",
+      "signal_epoch": 1792514100,
+      "entry_epoch": 1792514160,
+      "exit_epoch": 1792514220
+    }
+  ],
+  "completed": [
+    {
+      "signal_id": "CRASH50_1792511580",
+      "market": "CRASH50",
+      "signal": "CALL",
+      "signal_epoch": 1792511580,
+      "entry_epoch": 1792511640,
+      "exit_epoch": 1792511700,
+      "entry_close": 98658.342,
+      "exit_close": 98663.433,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "1HZ50V_1792511700",
+      "market": "1HZ50V",
+      "signal": "CALL",
+      "signal_epoch": 1792511700,
+      "entry_epoch": 1792511760,
+      "exit_epoch": 1792511820,
+      "entry_close": 203964.0,
+      "exit_close": 203935.99,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "1HZ100V_1792511760",
+      "market": "1HZ100V",
+      "signal": "PUT",
+      "signal_epoch": 1792511760,
+      "entry_epoch": 1792511820,
+      "exit_epoch": 1792511880,
+      "entry_close": 1072.9,
+      "exit_close": 1072.64,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "JD50_1792511940",
+      "market": "JD50",
+      "signal": "CALL",
+      "signal_epoch": 1792511940,
+      "entry_epoch": 1792512000,
+      "exit_epoch": 1792512060,
+      "entry_close": 69453.46,
+      "exit_close": 69422.55,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "R_50_1792512000",
+      "market": "R_50",
+      "signal": "CALL",
+      "signal_epoch": 1792512000,
+      "entry_epoch": 1792512060,
+      "exit_epoch": 1792512120,
+      "entry_close": 83.4917,
+      "exit_close": 83.3703,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "stpRNG_1792512000",
+      "market": "stpRNG",
+      "signal": "CALL",
+      "signal_epoch": 1792512000,
+      "entry_epoch": 1792512060,
+      "exit_epoch": 1792512120,
+      "entry_close": 7276.3,
+      "exit_close": 7276.7,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "1HZ25V_1792512120",
+      "market": "1HZ25V",
+      "signal": "CALL",
+      "signal_epoch": 1792512120,
+      "entry_epoch": 1792512180,
+      "exit_epoch": 1792512240,
+      "entry_close": 887922.56,
+      "exit_close": 887954.16,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "CRASH50_1792512120",
+      "market": "CRASH50",
+      "signal": "CALL",
+      "signal_epoch": 1792512120,
+      "entry_epoch": 1792512180,
+      "exit_epoch": 1792512240,
+      "entry_close": 98686.257,
+      "exit_close": 98690.407,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "R_10_1792512300",
+      "market": "R_10",
+      "signal": "CALL",
+      "signal_epoch": 1792512300,
+      "entry_epoch": 1792512360,
+      "exit_epoch": 1792512420,
+      "entry_close": 4892.157,
+      "exit_close": 4891.922,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "1HZ10V_1792512360",
+      "market": "1HZ10V",
+      "signal": "PUT",
+      "signal_epoch": 1792512360,
+      "entry_epoch": 1792512420,
+      "exit_epoch": 1792512480,
+      "entry_close": 9282.14,
+      "exit_close": 9281.03,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "R_100_1792512420",
+      "market": "R_100",
+      "signal": "CALL",
+      "signal_epoch": 1792512420,
+      "entry_epoch": 1792512480,
+      "exit_epoch": 1792512540,
+      "entry_close": 672.21,
+      "exit_close": 670.06,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "BOOM1000_1792512420",
+      "market": "BOOM1000",
+      "signal": "CALL",
+      "signal_epoch": 1792512420,
+      "entry_epoch": 1792512480,
+      "exit_epoch": 1792512540,
+      "entry_close": 15365.086,
+      "exit_close": 15364.335,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "stpRNG2_1792512420",
+      "market": "stpRNG2",
+      "signal": "CALL",
+      "signal_epoch": 1792512420,
+      "entry_epoch": 1792512480,
+      "exit_epoch": 1792512540,
+      "entry_close": 10740.4,
+      "exit_close": 10742.4,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "1HZ75V_1792512480",
+      "market": "1HZ75V",
+      "signal": "PUT",
+      "signal_epoch": 1792512480,
+      "entry_epoch": 1792512540,
+      "exit_epoch": 1792512600,
+      "entry_close": 4934.85,
+      "exit_close": 4936.08,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "R_50_1792512540",
+      "market": "R_50",
+      "signal": "CALL",
+      "signal_epoch": 1792512540,
+      "entry_epoch": 1792512600,
+      "exit_epoch": 1792512660,
+      "entry_close": 83.3021,
+      "exit_close": 83.3742,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "BOOM500_1792512660",
+      "market": "BOOM500",
+      "signal": "CALL",
+      "signal_epoch": 1792512660,
+      "entry_epoch": 1792512720,
+      "exit_epoch": 1792512780,
+      "entry_close": 5677.109,
+      "exit_close": 5676.515,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "R_100_1792512720",
+      "market": "R_100",
+      "signal": "CALL",
+      "signal_epoch": 1792512720,
+      "entry_epoch": 1792512780,
+      "exit_epoch": 1792512840,
+      "entry_close": 672.75,
+      "exit_close": 671.89,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "JD25_1792512780",
+      "market": "JD25",
+      "signal": "PUT",
+      "signal_epoch": 1792512780,
+      "entry_epoch": 1792512840,
+      "exit_epoch": 1792512900,
+      "entry_close": 130989.28,
+      "exit_close": 130997.95,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "R_50_1792512840",
+      "market": "R_50",
+      "signal": "CALL",
+      "signal_epoch": 1792512840,
+      "entry_epoch": 1792512900,
+      "exit_epoch": 1792512960,
+      "entry_close": 83.3596,
+      "exit_close": 83.3273,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "1HZ25V_1792512960",
+      "market": "1HZ25V",
+      "signal": "CALL",
+      "signal_epoch": 1792512960,
+      "entry_epoch": 1792513020,
+      "exit_epoch": 1792513080,
+      "entry_close": 889326.9,
+      "exit_close": 889128.56,
+      "result": "LOSS"
+    },
+    {
+      "signal_id": "CRASH50_1792512960",
+      "market": "CRASH50",
+      "signal": "CALL",
+      "signal_epoch": 1792512960,
+      "entry_epoch": 1792513020,
+      "exit_epoch": 1792513080,
+      "entry_close": 98674.179,
+      "exit_close": 98677.922,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "R_25_1792513080",
+      "market": "R_25",
+      "signal": "PUT",
+      "signal_epoch": 1792513080,
+      "entry_epoch": 1792513140,
+      "exit_epoch": 1792513200,
+      "entry_close": 2757.203,
+      "exit_close": 2757.082,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "BOOM50_1792513080",
+      "market": "BOOM50",
+      "signal": "PUT",
+      "signal_epoch": 1792513080,
+      "entry_epoch": 1792513140,
+      "exit_epoch": 1792513200,
+      "entry_close": 105526.914,
+      "exit_close": 105521.28,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "stpRNG2_1792513140",
+      "market": "stpRNG2",
+      "signal": "CALL",
+      "signal_epoch": 1792513140,
+      "entry_epoch": 1792513200,
+      "exit_epoch": 1792513260,
+      "entry_close": 10742.4,
+      "exit_close": 10744.4,
+      "result": "WIN"
+    },
+    {
+      "signal_id": "R_10_1792513200",
+      "market": "R_10",
+      "signal": "CALL",
+      "signal_epoch": 1792513200,
+      "entry_epoch": 1792513260,
+      "exit_epoch": 1792513320,
+      "entry_close": 4893.794,
+      "exit_close": 4892.974,
+      "result": "LOSS"
+    }
+  ]
+}
