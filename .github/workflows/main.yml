@@ -1,0 +1,28 @@
+name: Binary Engine Safe Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  safe-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get project code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check Python
+        run: python --version
+
+      - name: Check SMC V3
+        run: |
+          python -c "from engine.smart_structure_v3 import evaluate_smc_v3, attach_next_m1_entry; print('SMC V3 IMPORT OK')"
